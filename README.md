@@ -15,6 +15,14 @@ tags:
   - field-notes
   - best-demo
   - best-agent
+  - track:backyard
+  - track:wood
+  - sponsor:openbmb
+  - sponsor:openai
+  - sponsor:modal
+  - achievement:offgrid
+  - achievement:offbrand
+  - achievement:fieldnotes
 short_description: Offline AI health companion for elderly, Gemma 4 2B
 ---
 
