@@ -36,7 +36,7 @@ short_description: Offline AI health companion for elderly, Gemma 4 2B
 
 ## 🗣️ Social Post
 
-**X/Twitter:** https://x.com/ABI_N_JITH/status/XXXXXXXX
+**X/Twitter:** https://x.com/AbinjithT/status/2066605098663551312
 
 <!-- ⚠️ REPLACE the link above with your actual tweet URL after posting -->
 
