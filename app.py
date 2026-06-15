@@ -32,194 +32,130 @@ try:
 except Exception:
     pass
 
-# Malayalam system prompt
 SYSTEM_PROMPT = """നീ "തുണ" (Thuna) ആണ്. കേരളത്തിലെ പ്രായമായവരുടെ ആരോഗ്യ companion.
 
 നിയമങ്ങൾ:
 - നാടൻ മലയാളത്തിൽ മാത്രം മറുപടി നൽകുക. English words ആവശ്യമെങ്കിൽ മാത്രം (medicine names, numbers).
 - ചെറിയ വാക്യങ്ങൾ. ലളിതമായ ഭാഷ. പ്രായമായവർക്ക് മനസ്സിലാകുന്നത്.
 - ആരോഗ്യ കാര്യങ്ങളിൽ ശ്രദ്ധാലുവായിരിക്കുക. അപകടകരമായ values കണ്ടാൽ ഡോക്ടറെ കാണാൻ പറയുക.
-- Companion ആയി സംസാരിക്കുക. Warm, caring. ചിരിപ്പിക്കുക.
-- മരുന്ന് കാര്യങ്ങളിൽ exact ആയിരിക്കുക.
+- Companion ആയി സംസാരിക്കുക. Warm, caring.
 - 2-3 വാക്യത്തിൽ answer ചെയ്യുക.
 - Hindi, Manglish എഴുതരുത്. Pure Malayalam script മാത്രം.
 
 ശരി: "BP record ചെയ്തു. 130/85 — നോർമൽ ആണ്. നന്നായിരിക്കുന്നു!"
-തെറ്റ്: "Aapka BP record ho gaya hai"
-തെറ്റ്: "Ningalude BP record cheythu" """
+തെറ്റ്: "Aapka BP record ho gaya hai" """
 
 
 def generate_llm_response(context: str, chat_history: List[dict]) -> str:
-    """Generate response using Gemma via HF Inference API."""
     if not client:
         return generate_fallback_response(context)
-
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for msg in chat_history[-8:]:
         messages.append(msg)
     messages.append({"role": "user", "content": context})
-
     try:
         response = client.chat_completion(
-            model=MODEL_ID,
-            messages=messages,
-            max_tokens=200,
-            temperature=0.7,
-            top_p=0.9,
+            model=MODEL_ID, messages=messages,
+            max_tokens=200, temperature=0.7, top_p=0.9,
         )
         text = response.choices[0].message.content.strip()
-        return post_process_malayalam(text)
+        text = re.sub(r'[\*\#]+', '', text)
+        return text
     except Exception:
         return generate_fallback_response(context)
 
 
-def post_process_malayalam(text: str) -> str:
-    """Clean LLM output."""
-    text = re.sub(r'[\*\#]+', '', text)
-    lines = text.split('\n')
-    clean = []
-    for line in lines:
-        if not line.strip():
-            continue
-        mal = len(re.findall(r'[\u0D00-\u0D7F]', line))
-        lat = len(re.findall(r'[a-zA-Z]', line))
-        if mal > 0 or len(line) < 20:
-            clean.append(line)
-    return '\n'.join(clean) if clean else text
-
-
 def generate_fallback_response(context: str) -> str:
-    """Template responses when LLM API unavailable."""
     lower = context.lower()
-    if "bp" in lower and "record" in lower:
+    if "bp" in lower and ("record" in lower or "vital" in lower):
         return "BP record ചെയ്തു. ശ്രദ്ധിക്കണം. വിശ്രമിക്കുക. 🩺"
-    if "sugar" in lower and "record" in lower:
+    if "sugar" in lower and ("record" in lower or "vital" in lower):
         return "ഷുഗർ record ചെയ്തു. ട്രെൻഡ് ശ്രദ്ധിക്കാം. 🩸"
+    if "saved" in lower and "medication" in lower:
+        return "മരുന്ന് save ചെയ്തു. Reminder set ചെയ്തു. 💊⏰"
     if "medication" in lower or "medicine" in lower:
-        if "saved" in lower or "save" in lower:
-            return "മരുന്ന് save ചെയ്തു. Reminder set ചെയ്തിട്ടുണ്ട്. 💊"
         return "നിങ്ങളുടെ മരുന്നുകൾ ഇതാ."
-    if "took" in lower or "taken" in lower or "adherence" in lower:
-        return "നന്നായി! മരുന്ന് കഴിച്ചു എന്ന് record ചെയ്തു. ✅"
+    if "took" in lower or "taken" in lower or "confirm" in lower:
+        return "നന്നായി! മരുന്ന് കഴിച്ചു. ✅"
     if "reminder" in lower:
         return "Reminder set ചെയ്തു. സമയത്ത് ഓർമ്മിപ്പിക്കാം. ⏰"
     if "condition" in lower:
         return "രേഖപ്പെടുത്തി. ഡോക്ടറുടെ നിർദ്ദേശം പാലിക്കുക. 🏥"
-    if "symptom" in lower or "pain" in lower or "fever" in lower:
-        return "ലക്ഷണം record ചെയ്തു. കൂടുതൽ അസ്വസ്ഥത ഉണ്ടെങ്കിൽ ഡോക്ടറെ കാണുക. 🤒"
+    if "symptom" in lower or "report" in lower:
+        return "ലക്ഷണം record ചെയ്തു. ഡോക്ടറെ കാണുക. 🤒"
     if "alert" in lower or "🚨" in lower:
         return "⚠️ ശ്രദ്ധിക്കുക! ഡോക്ടറെ വിളിക്കുക."
     return "എന്താ വിശേഷം? ആരോഗ്യം, മരുന്ന്, BP, ഷുഗർ — എന്തും ചോദിക്കാം. 😊"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# GLOBAL STATE
+# STATE
 # ═══════════════════════════════════════════════════════════════════════════
 
 health_store = HealthStore()
 
 
 def process_message(message: str, history: List[dict]) -> Tuple[List[dict], str]:
-    """Process user message through the agent pipeline."""
     global health_store
-
     if not message or not message.strip():
-        return history, ""
-
+        return history or [], ""
     history = history or []
     history.append({"role": "user", "content": message})
 
     agent_result = run_agent(message, health_store)
     llm_response = generate_llm_response(agent_result.context_for_llm, history)
 
-    response_parts = []
+    parts = []
     if agent_result.alert:
-        response_parts.append(agent_result.alert)
-        response_parts.append("")
-    response_parts.append(llm_response)
+        parts.append(agent_result.alert)
+    parts.append(llm_response)
     if agent_result.badge:
-        response_parts.append(f"\n{agent_result.badge}")
+        parts.append(agent_result.badge)
     if agent_result.tools_executed:
         tools = " · ".join(f"✓ {t['tool']}" for t in agent_result.tools_executed if t['success'])
         if tools:
-            response_parts.append(f"\n╌╌╌ {tools}")
+            parts.append(f"╌╌ {tools}")
 
-    final_response = "\n".join(response_parts)
-    history.append({"role": "assistant", "content": final_response})
+    history.append({"role": "assistant", "content": "\n".join(parts)})
     return history, ""
 
 
-def get_dashboard_html() -> str:
-    """Generate dashboard as styled HTML."""
+def get_status_text() -> str:
+    """Compact status for the sidebar."""
     global health_store
-
     meds = health_store.get_active_medications()
     vitals = health_store.get_recent_vitals(5)
     conds = health_store.get_conditions()
     rems = health_store.get_active_reminders()
     adherence = health_store.get_adherence_rate()
 
-    html = '<div style="font-family: -apple-system, system-ui, sans-serif; font-size: 14px; line-height: 1.6; padding: 12px;">'
-
-    # Medications
-    html += '<div style="margin-bottom: 16px;"><strong style="color: #0D7C66;">💊 Medications</strong><br>'
-    if meds:
-        for m in meds:
-            html += f'<span style="display:block; padding: 2px 0; color: #374151;">• {m.name} {m.dosage} — {m.frequency}</span>'
-    else:
-        html += '<span style="color: #9CA3AF;">None recorded</span>'
-    html += '</div>'
-
-    # Vitals
-    html += '<div style="margin-bottom: 16px;"><strong style="color: #0D7C66;">📊 Recent Vitals</strong><br>'
-    if vitals:
-        labels = {'bp': 'BP', 'sugar': 'Sugar', 'spo2': 'SpO2', 'temperature': 'Temp', 'heart_rate': 'HR', 'weight': 'Weight'}
-        for v in reversed(vitals[-5:]):
-            val = f"{v.primary}/{v.secondary}" if v.secondary else f"{v.primary}"
-            html += f'<span style="display:block; padding: 2px 0; color: #374151;">{labels.get(v.vital_type, v.vital_type)}: {val} {v.unit}</span>'
-    else:
-        html += '<span style="color: #9CA3AF;">No readings yet</span>'
-    html += '</div>'
-
-    # Conditions
+    lines = []
     if conds:
-        html += '<div style="margin-bottom: 16px;"><strong style="color: #0D7C66;">🏥 Conditions</strong><br>'
-        for c in conds:
-            html += f'<span style="display:block; padding: 2px 0; color: #374151;">• {c.name} ({c.status})</span>'
-        html += '</div>'
-
-    # Reminders
+        lines.append("🏥 " + ", ".join(c.name for c in conds))
+    if meds:
+        lines.append("💊 " + " | ".join(f"{m.name} {m.dosage}" for m in meds))
+    else:
+        lines.append("💊 No medications")
+    if vitals:
+        labels = {'bp': 'BP', 'sugar': 'Sugar', 'spo2': 'SpO2', 'temperature': 'Temp', 'heart_rate': 'HR'}
+        recent = vitals[-3:]
+        for v in reversed(recent):
+            val = f"{v.primary}/{v.secondary}" if v.secondary else f"{v.primary}"
+            lines.append(f"  📊 {labels.get(v.vital_type, v.vital_type)}: {val}{v.unit}")
     if rems:
-        html += '<div style="margin-bottom: 16px;"><strong style="color: #0D7C66;">⏰ Reminders</strong><br>'
-        for r in rems:
-            html += f'<span style="display:block; padding: 2px 0; color: #374151;">• {r.medication} at {", ".join(r.times)}</span>'
-        html += '</div>'
-
-    # Adherence
-    html += f'<div style="margin-bottom: 8px;"><strong style="color: #0D7C66;">📈 Adherence:</strong> <span style="color: #374151;">{adherence["rate"]}% (7 days)</span></div>'
-
-    html += '</div>'
-    return html
+        lines.append(f"⏰ {len(rems)} active reminder(s)")
+    lines.append(f"📈 Adherence: {adherence['rate']}%")
+    return "\n".join(lines)
 
 
-def generate_report() -> str:
+def generate_report_text(rtype: str) -> str:
     global health_store
-    return health_store.generate_health_report("Grandmother")
-
-
-def generate_status() -> str:
-    global health_store
+    if rtype == "Health Report":
+        return health_store.generate_health_report("Grandmother")
     return health_store.generate_family_status("Grandmother")
 
 
-def reset_session():
-    global health_store
-    health_store = HealthStore()
-    initial = [{"role": "assistant", "content": "Session reset! 🌱\n\nനമസ്കാരം! ഞാൻ തുണ. എന്താ വിശേഷം? 😊"}]
-    return initial, get_dashboard_html()
-
-
-def load_demo_data():
+def load_demo():
     global health_store
     health_store = HealthStore()
     health_store.save_condition("Type 2 Diabetes", "moderate", "E11")
@@ -235,313 +171,171 @@ def load_demo_data():
     health_store.mark_taken("Amlodipine")
 
     welcome = (
-        "Demo data loaded! 🎉\n\n"
-        "**Patient:** Elderly grandmother with Diabetes + Hypertension\n"
-        "**Medications:** Metformin 500mg, Amlodipine 5mg, Ecosprin 75mg\n\n"
+        "Demo loaded! 🎉 Grandmother with Diabetes + Hypertension.\n\n"
         "Try:\n"
         "• `BP 145/92` — record blood pressure\n"
         "• `sugar 200` — record blood sugar\n"
         "• `took metformin` — log adherence\n"
         "• `my medicines` — list medications\n"
         "• `remind me at 9pm take medicine`\n"
-        "• `I have headache and fever`\n"
-        "• Malayalam: `ഷുഗർ 180` or `മരുന്ന് കഴിച്ചു`"
+        "• `I have headache`\n"
+        "• Malayalam: `ഷുഗർ 180`"
     )
-    initial = [{"role": "assistant", "content": welcome}]
-    return initial, get_dashboard_html()
+    return [{"role": "assistant", "content": welcome}], get_status_text()
+
+
+def reset_all():
+    global health_store
+    health_store = HealthStore()
+    return [{"role": "assistant", "content": "🌱 Fresh start!\n\nനമസ്കാരം! ഞാൻ തുണ. എന്താ വിശേഷം? 😊"}], get_status_text()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CUSTOM CSS — Matches React Native app exactly
+# CSS — Clean, focused chat UI matching the mobile app
 # ═══════════════════════════════════════════════════════════════════════════
 
-CUSTOM_CSS = """
-/* ─── Base ─── */
-:root {
-    --thuna-green: #0D7C66;
-    --thuna-green-light: #F0FDF4;
-    --thuna-green-dark: #065A4A;
-    --thuna-bg: #FAFBFC;
-    --thuna-border: #F0F0F0;
-    --thuna-text: #1F2937;
-    --thuna-muted: #9CA3AF;
-}
-
+CSS = """
 .gradio-container {
-    max-width: 100% !important;
-    background: var(--thuna-bg) !important;
+    max-width: 900px !important;
+    margin: 0 auto !important;
+    background: #FAFBFC !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
 }
 
-/* ─── Header (matches app green gradient) ─── */
-#thuna-header {
-    background: linear-gradient(135deg, #0D7C66 0%, #065A4A 100%);
-    padding: 24px;
-    border-radius: 20px;
-    margin-bottom: 16px;
-    text-align: center;
-    box-shadow: 0 4px 12px rgba(13, 124, 102, 0.2);
+#header {
+    background: linear-gradient(135deg, #0D7C66, #065A4A);
+    padding: 20px; border-radius: 16px; text-align: center;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px rgba(13,124,102,0.15);
 }
-#thuna-header h1 {
-    color: white !important;
-    font-size: 26px !important;
-    margin: 0 !important;
-    font-weight: 700 !important;
-    letter-spacing: -0.5px;
+#header h1 { color: white !important; font-size: 24px !important; margin: 0 !important; font-weight: 700 !important; }
+#header p { color: #D1FAE5 !important; font-size: 12px !important; margin: 4px 0 0 !important; }
+
+/* Chat */
+#chatbox { border-radius: 16px !important; border: 1px solid #E5E7EB !important; }
+#chatbox .user .message-bubble {
+    background: #0D7C66 !important; color: white !important;
+    border-radius: 18px 18px 4px 18px !important;
+    font-size: 15px !important; line-height: 1.5 !important;
 }
-#thuna-header p {
-    color: #D1FAE5 !important;
-    margin: 4px 0 0 !important;
-    font-size: 13px !important;
-    opacity: 0.9;
+#chatbox .bot .message-bubble {
+    background: white !important; color: #1F2937 !important;
+    border: 1px solid #F0F0F0 !important;
+    border-radius: 18px 18px 18px 4px !important;
+    font-size: 15px !important; line-height: 1.5 !important;
 }
 
-/* ─── Chat (matches RN bubbles) ─── */
-.chatbot {
-    background: var(--thuna-bg) !important;
-    border: 1px solid var(--thuna-border) !important;
-    border-radius: 20px !important;
-    min-height: 480px !important;
+/* Chips */
+#chips button {
+    border-radius: 18px !important; font-size: 13px !important; font-weight: 500 !important;
+    background: #F0FDF4 !important; border: 1px solid #D1FAE5 !important; color: #065A4A !important;
+    padding: 6px 14px !important; min-height: 34px !important;
 }
-.chatbot .message-wrap {
-    padding: 16px !important;
-}
+#chips button:hover { background: #D1FAE5 !important; }
 
-/* User bubble — green like the RN app */
-.chatbot .user .message-bubble {
-    background: var(--thuna-green) !important;
-    color: white !important;
-    border-radius: 20px 20px 6px 20px !important;
-    font-size: 16px !important;
-    line-height: 1.6 !important;
-    padding: 12px 16px !important;
+/* Input */
+#input-box textarea {
+    background: #F5F7FA !important; border: none !important; border-radius: 22px !important;
+    padding: 12px 18px !important; font-size: 15px !important; min-height: 44px !important;
 }
+#input-box textarea:focus { box-shadow: 0 0 0 2px rgba(13,124,102,0.15) !important; }
 
-/* Agent bubble — white with subtle border */
-.chatbot .bot .message-bubble {
-    background: #FFFFFF !important;
-    color: var(--thuna-text) !important;
-    border: 1px solid var(--thuna-border) !important;
-    border-radius: 20px 20px 20px 6px !important;
-    font-size: 16px !important;
-    line-height: 1.6 !important;
-    padding: 12px 16px !important;
-}
-
-/* ─── Quick Action Chips (matches RN chips exactly) ─── */
-#chip-row {
-    padding: 8px 0 !important;
-}
-#chip-row button {
-    border-radius: 20px !important;
-    padding: 8px 16px !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    background: var(--thuna-green-light) !important;
-    border: 1px solid #D1FAE5 !important;
-    color: var(--thuna-green-dark) !important;
-    min-height: 36px !important;
-    transition: background 0.2s;
-}
-#chip-row button:hover {
-    background: #D1FAE5 !important;
-}
-
-/* ─── Input (matches RN input bar) ─── */
-#msg-input textarea {
-    background: #F5F7FA !important;
-    border-radius: 24px !important;
-    border: none !important;
-    padding: 14px 20px !important;
-    font-size: 16px !important;
-    color: var(--thuna-text) !important;
-    min-height: 48px !important;
-    resize: none !important;
-}
-#msg-input textarea::placeholder {
-    color: #B0B0B0 !important;
-}
-#msg-input textarea:focus {
-    box-shadow: 0 0 0 2px rgba(13, 124, 102, 0.2) !important;
-}
-
-/* Send button — green circle like RN */
 #send-btn {
-    background: var(--thuna-green) !important;
-    color: white !important;
-    border-radius: 24px !important;
-    min-width: 48px !important;
-    min-height: 48px !important;
-    font-size: 18px !important;
-    font-weight: 700 !important;
-    border: none !important;
-    box-shadow: 0 2px 8px rgba(13, 124, 102, 0.3) !important;
+    background: #0D7C66 !important; color: white !important; border-radius: 22px !important;
+    min-width: 44px !important; min-height: 44px !important; font-size: 18px !important;
+    border: none !important; font-weight: 700 !important;
 }
-#send-btn:hover {
-    background: var(--thuna-green-dark) !important;
+#send-btn:hover { background: #065A4A !important; }
+
+/* Status panel */
+#status-box textarea {
+    font-size: 12px !important; font-family: monospace !important; line-height: 1.4 !important;
+    background: #F8FAFC !important; border-radius: 10px !important;
 }
 
-/* ─── Dashboard panel ─── */
-#dashboard-panel {
-    background: white !important;
-    border: 1px solid var(--thuna-border) !important;
-    border-radius: 16px !important;
-    overflow: hidden;
-}
+/* Accordion */
+.accordion { border-radius: 12px !important; }
 
-/* ─── Tab styling ─── */
-.tab-nav {
-    border-bottom: 1px solid var(--thuna-border) !important;
+/* Mobile */
+@media (max-width: 640px) {
+    .gradio-container { padding: 6px !important; }
+    #header { padding: 14px; }
+    #header h1 { font-size: 20px !important; }
+    #chatbox { min-height: 350px !important; }
 }
-.tab-nav button {
-    font-size: 13px !important;
-    font-weight: 500 !important;
-}
-.tab-nav button.selected {
-    color: var(--thuna-green) !important;
-    border-color: var(--thuna-green) !important;
-}
-
-/* ─── Setup buttons ─── */
-#demo-btn {
-    background: var(--thuna-green) !important;
-    color: white !important;
-    border-radius: 12px !important;
-    font-weight: 600 !important;
-}
-#reset-btn {
-    border-radius: 12px !important;
-}
-
-/* ─── Report box ─── */
-#report-box textarea {
-    font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
-    font-size: 12px !important;
-    line-height: 1.5 !important;
-}
-
-/* ─── Mobile responsive ─── */
-@media (max-width: 768px) {
-    .gradio-container { padding: 8px !important; }
-    #thuna-header { padding: 16px; border-radius: 14px; }
-    #thuna-header h1 { font-size: 22px !important; }
-    .chatbot { min-height: 360px !important; border-radius: 14px !important; }
-    #chip-row button { font-size: 13px !important; padding: 6px 12px !important; }
-    #msg-input textarea { font-size: 15px !important; }
-}
-
-/* Elderly-friendly: minimum touch targets */
-button { min-height: 44px !important; }
 """
 
 # ═══════════════════════════════════════════════════════════════════════════
-# GRADIO UI — Mirrors the React Native app layout
+# UI — Single focused page, chat-first
 # ═══════════════════════════════════════════════════════════════════════════
 
-with gr.Blocks(css=CUSTOM_CSS, title="Thuna (തുണ) — AI Health Companion", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(css=CSS, title="Thuna — AI Health Companion", theme=gr.themes.Soft()) as demo:
 
-    # ─── Header (green gradient, app identity) ───
-    gr.HTML("""
-    <div id="thuna-header">
-        <h1>🤝 തുണ — Thuna</h1>
-        <p>Offline AI Health Companion for Elderly • Gemma 4 E2B (2B params)</p>
-        <p style="font-size: 11px; margin-top: 6px; opacity: 0.7;">
-            Malayalam Voice • Medication Safety • Health Monitoring • 100% On-Device
-        </p>
-    </div>
-    """)
+    # Header
+    gr.HTML('<div id="header"><h1>🤝 തുണ — Thuna</h1><p>AI Health Companion • Gemma 4 E2B (2B) • Malayalam • Offline</p></div>')
 
+    # Main Chat
+    chatbot = gr.Chatbot(
+        value=[{"role": "assistant", "content": "നമസ്കാരം! 🙏 ഞാൻ തുണ.\n\nBP, ഷുഗർ, മരുന്ന് — എന്തും ചോദിക്കാം.\n\n💡 Try: `BP 140/90` · `sugar 180` · `took metformin`\n\n⚙️ Click **Load Demo** below to start with sample data."}],
+        type="messages",
+        height=420,
+        elem_id="chatbox",
+        show_copy_button=True,
+    )
+
+    # Quick chips
+    with gr.Row(elem_id="chips"):
+        chip_bp = gr.Button("❤️ BP", size="sm")
+        chip_sugar = gr.Button("🩸 ഷുഗർ", size="sm")
+        chip_taken = gr.Button("💊 കഴിച്ചു", size="sm")
+        chip_meds = gr.Button("📋 മരുന്നുകൾ", size="sm")
+        chip_today = gr.Button("📆 ഇന്ന്", size="sm")
+
+    # Input
     with gr.Row():
-        # ─── LEFT: Chat (main area) ───
-        with gr.Column(scale=3):
-            chatbot = gr.Chatbot(
-                value=[{"role": "assistant", "content": "നമസ്കാരം! 🙏 ഞാൻ തുണ.\n\nആരോഗ്യം, മരുന്ന്, BP, ഷുഗർ — എന്തും ചോദിക്കാം.\nഅല്ലെങ്കിൽ വെറുതെ സംസാരിക്കാം. 😊\n\n💡 `BP 140/90` · `sugar 180` · `took metformin` · `my medicines`"}],
-                type="messages",
-                height=480,
-                show_copy_button=True,
-                avatar_images=(None, "https://em-content.zobj.net/source/twitter/376/handshake_1f91d.png"),
-            )
+        msg = gr.Textbox(placeholder="തുണയോട് പറയുക...", show_label=False, scale=5, elem_id="input-box", lines=1)
+        send = gr.Button("↑", elem_id="send-btn", scale=0, min_width=44)
 
-            # Quick action chips (matches RN chip row)
-            with gr.Row(elem_id="chip-row"):
-                chip_bp = gr.Button("❤️ BP", size="sm")
-                chip_sugar = gr.Button("🩸 ഷുഗർ", size="sm")
-                chip_taken = gr.Button("💊 കഴിച്ചു", size="sm")
-                chip_meds = gr.Button("📋 മരുന്നുകൾ", size="sm")
-                chip_report = gr.Button("📄 Report", size="sm")
+    # Collapsible panels below chat
+    with gr.Accordion("📊 Health Status", open=False):
+        status_box = gr.Textbox(value=get_status_text(), label="", lines=8, interactive=False, elem_id="status-box")
+        with gr.Row():
+            refresh_btn = gr.Button("Refresh", size="sm")
+            demo_btn = gr.Button("🎬 Load Demo", size="sm", variant="primary")
+            reset_btn = gr.Button("Reset", size="sm")
 
-            # Input row (matches RN: textbox + send button)
-            with gr.Row():
-                msg_input = gr.Textbox(
-                    placeholder="തുണയോട് പറയുക... (BP 140/90, sugar 180, took medicine...)",
-                    show_label=False,
-                    scale=5,
-                    elem_id="msg-input",
-                    lines=1,
-                    max_lines=2,
-                )
-                send_btn = gr.Button("↑", elem_id="send-btn", scale=0, min_width=48)
+    with gr.Accordion("📄 Reports", open=False):
+        with gr.Row():
+            rtype = gr.Radio(["Health Report", "Family Status"], value="Health Report", label="", scale=3)
+            gen_btn = gr.Button("Generate", size="sm", variant="primary", scale=1)
+        report_box = gr.Textbox(label="", lines=15, interactive=False, show_copy_button=True)
 
-            # Voice + Camera row
-            with gr.Row():
-                audio_input = gr.Audio(sources=["microphone"], type="filepath", label="🎤 Malayalam Voice", scale=2)
-                image_input = gr.Image(type="filepath", label="📷 Prescription", sources=["upload", "webcam"], height=80, scale=1)
+    with gr.Accordion("🎤 Voice & 📷 Prescription", open=False):
+        with gr.Row():
+            audio_in = gr.Audio(sources=["microphone"], type="filepath", label="Record Malayalam voice")
+            img_in = gr.Image(type="filepath", label="Upload prescription photo", sources=["upload", "webcam"], height=120)
 
-        # ─── RIGHT: Dashboard sidebar ───
-        with gr.Column(scale=1, min_width=260):
-            with gr.Tabs():
-                with gr.Tab("📊 Dashboard"):
-                    dashboard = gr.HTML(value=get_dashboard_html(), elem_id="dashboard-panel")
-                    refresh_btn = gr.Button("🔄 Refresh", size="sm")
+    # ─── Wiring ───
 
-                with gr.Tab("📄 Reports"):
-                    report_type = gr.Radio(["Health Report", "Family Status"], value="Health Report", label="Type")
-                    gen_report_btn = gr.Button("Generate", variant="primary", size="sm")
-                    report_output = gr.Textbox(label="Report", lines=18, interactive=False, elem_id="report-box", show_copy_button=True)
-
-                with gr.Tab("⚙️ Setup"):
-                    gr.Markdown("### Quick Start")
-                    gr.Markdown("Load demo data to explore Thuna with a pre-configured patient.")
-                    demo_btn = gr.Button("🎬 Load Demo Data", variant="primary", elem_id="demo-btn")
-                    reset_btn = gr.Button("🔄 Reset", variant="secondary", elem_id="reset-btn")
-                    gr.Markdown("""---
-**Architecture:**
-```
-Voice → Regex (<1ms)
-     → 23-tool Agent
-     → Gemma 4 E2B
-     → Malayalam TTS
-```
-**Model:** Gemma 4 E2B (2B, INT4)
-**Offline:** 100% on-device after setup
-""")
-
-    # ═══════════════════════════════════════════════════════════════════════
-    # EVENT HANDLERS
-    # ═══════════════════════════════════════════════════════════════════════
-
-    def submit_msg(message, history):
+    def on_submit(message, history):
         history, _ = process_message(message, history)
-        return history, "", get_dashboard_html()
+        return history, "", get_status_text()
 
-    def chip_action(text, history):
+    def on_chip(text, history):
         history, _ = process_message(text, history)
-        return history, get_dashboard_html()
+        return history, get_status_text()
 
-    def report_action(rtype):
-        return generate_report() if rtype == "Health Report" else generate_status()
+    def on_demo():
+        h, s = load_demo()
+        return h, s
 
-    def demo_action():
-        h, d = load_demo_data()
-        return h, d
+    def on_reset():
+        h, s = reset_all()
+        return h, s
 
-    def reset_action():
-        h, d = reset_session()
-        return h, d
-
-    def process_voice(audio_path, history):
+    def on_voice(audio_path, history):
         if not audio_path:
-            return history, get_dashboard_html()
+            return history or [], get_status_text()
         transcription = ""
         try:
             if client:
@@ -551,41 +345,42 @@ Voice → Regex (<1ms)
             pass
         if not transcription:
             history = history or []
-            history.append({"role": "assistant", "content": "🎤 Voice received. Type your message for this web demo — the mobile app has full Malayalam STT."})
-            return history, get_dashboard_html()
+            history.append({"role": "assistant", "content": "🎤 Voice received — type your message for the web demo. Mobile app has full Malayalam STT."})
+            return history, get_status_text()
         history, _ = process_message(transcription, history)
-        return history, get_dashboard_html()
+        return history, get_status_text()
 
-    def process_image(image_path, history):
+    def on_image(image_path, history):
         if not image_path:
-            return history, get_dashboard_html()
+            return history or [], get_status_text()
         history = history or []
-        history.append({"role": "user", "content": "📷 [Prescription uploaded]"})
-        history.append({"role": "assistant", "content": "📷 Prescription uploaded!\n\nIn the mobile app, Gemma 4 vision extracts medications automatically.\n\nFor this demo, type them manually:\n• `metformin 500mg twice daily after food`\n• `amlodipine 5mg once daily morning`\n\nEach saves with auto-reminders. 💊"})
-        return history, get_dashboard_html()
+        history.append({"role": "user", "content": "📷 Prescription uploaded"})
+        history.append({"role": "assistant", "content": "📷 Got it! In the mobile app, Gemma 4 vision extracts medications.\n\nFor this demo, type:\n• `metformin 500mg twice daily after food`\n• `amlodipine 5mg once daily`\n\nEach saves with auto-reminder. 💊"})
+        return history, get_status_text()
 
-    # Wire events
-    msg_input.submit(submit_msg, [msg_input, chatbot], [chatbot, msg_input, dashboard])
-    send_btn.click(submit_msg, [msg_input, chatbot], [chatbot, msg_input, dashboard])
+    # Submit
+    msg.submit(on_submit, [msg, chatbot], [chatbot, msg, status_box])
+    send.click(on_submit, [msg, chatbot], [chatbot, msg, status_box])
 
-    chip_bp.click(lambda: "BP ", outputs=[msg_input])
-    chip_sugar.click(lambda: "sugar ", outputs=[msg_input])
-    chip_taken.click(lambda h: chip_action("took medicine", h), [chatbot], [chatbot, dashboard])
-    chip_meds.click(lambda h: chip_action("my medicines", h), [chatbot], [chatbot, dashboard])
-    chip_report.click(report_action, [report_type], [report_output])
+    # Chips
+    chip_bp.click(lambda: "BP ", outputs=[msg])
+    chip_sugar.click(lambda: "sugar ", outputs=[msg])
+    chip_taken.click(lambda h: on_chip("took medicine", h), [chatbot], [chatbot, status_box])
+    chip_meds.click(lambda h: on_chip("my medicines", h), [chatbot], [chatbot, status_box])
+    chip_today.click(lambda h: on_chip("did I take medicine today", h), [chatbot], [chatbot, status_box])
 
-    refresh_btn.click(get_dashboard_html, outputs=[dashboard])
-    gen_report_btn.click(report_action, [report_type], [report_output])
-    demo_btn.click(demo_action, outputs=[chatbot, dashboard])
-    reset_btn.click(reset_action, outputs=[chatbot, dashboard])
+    # Controls
+    refresh_btn.click(get_status_text, outputs=[status_box])
+    demo_btn.click(on_demo, outputs=[chatbot, status_box])
+    reset_btn.click(on_reset, outputs=[chatbot, status_box])
 
-    audio_input.stop_recording(process_voice, [audio_input, chatbot], [chatbot, dashboard])
-    image_input.change(process_image, [image_input, chatbot], [chatbot, dashboard])
+    # Reports
+    gen_btn.click(generate_report_text, [rtype], [report_box])
 
+    # Voice/Image
+    audio_in.stop_recording(on_voice, [audio_in, chatbot], [chatbot, status_box])
+    img_in.change(on_image, [img_in, chatbot], [chatbot, status_box])
 
-# ═══════════════════════════════════════════════════════════════════════════
-# LAUNCH
-# ═══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860)
