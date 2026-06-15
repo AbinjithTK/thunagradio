@@ -170,7 +170,7 @@ def load_demo():
         "Demo loaded! 🎉\n\n"
         "Grandmother: Diabetes + Hypertension\n"
         "Meds: Metformin, Amlodipine, Ecosprin\n\n"
-        "Try: `BP 145/92` · `sugar 200` · `took metformin` · `my medicines`"
+        "Try: BP 145/92 · sugar 200 · took metformin · my medicines"
     )
     return [{"role": "assistant", "content": welcome}], get_status_text()
 
@@ -221,17 +221,38 @@ CSS = """
     border: 1px solid #E8ECF0 !important;
     background: #FFFFFF !important;
 }
-#chatbox .wrapper { background: #FFFFFF !important; }
-#chatbox .user .message-bubble {
+#chatbox .wrapper, #chatbox .message-wrap, #chatbox .messages { background: #FFFFFF !important; }
+
+/* User bubble — GREEN */
+#chatbox .user .message-bubble,
+#chatbox .message-row.user .content,
+.chatbot .user .message-bubble {
     background: #0D7C66 !important; color: white !important;
     border-radius: 16px 16px 4px 16px !important;
     font-size: 15px !important; line-height: 1.5 !important;
+    padding: 10px 14px !important;
 }
-#chatbox .bot .message-bubble {
-    background: #F8FAFB !important; color: #1F2937 !important;
+#chatbox .user .message-bubble *, .chatbot .user .message-bubble * { color: white !important; }
+
+/* Bot bubble — LIGHT GRAY */
+#chatbox .bot .message-bubble,
+#chatbox .message-row.bot .content,
+.chatbot .bot .message-bubble {
+    background: #F3F4F6 !important; color: #1F2937 !important;
     border: 1px solid #E8ECF0 !important;
     border-radius: 16px 16px 16px 4px !important;
     font-size: 15px !important; line-height: 1.5 !important;
+    padding: 10px 14px !important;
+}
+#chatbox .bot .message-bubble *, .chatbot .bot .message-bubble * { color: #1F2937 !important; }
+
+/* Code blocks — visible on both bubbles */
+#chatbox code, .chatbot code {
+    background: rgba(0,0,0,0.08) !important; color: inherit !important;
+    border-radius: 4px !important; padding: 1px 5px !important; font-size: 13px !important;
+}
+#chatbox .user code, .chatbot .user code {
+    background: rgba(255,255,255,0.25) !important; color: white !important;
 }
 
 /* Chips row */
@@ -329,7 +350,7 @@ with gr.Blocks(css=CSS, title="Thuna — AI Health Companion", theme=gr.themes.D
 
     # Chat
     chatbot = gr.Chatbot(
-        value=[{"role": "assistant", "content": "നമസ്കാരം! 🙏 ഞാൻ തുണ.\n\nBP, ഷുഗർ, മരുന്ന് — എന്തും ചോദിക്കാം.\n\n💡 `BP 140/90` · `sugar 180` · `took metformin`\n\n⚙️ Tap **Load Demo** in Health Status below."}],
+        value=[{"role": "assistant", "content": "നമസ്കാരം! 🙏 ഞാൻ തുണ.\n\nBP, ഷുഗർ, മരുന്ന് — എന്തും ചോദിക്കാം.\n\n💡 Try: BP 140/90 · sugar 180 · took metformin\n\n⚙️ Tap Load Demo in Health Status below."}],
         type="messages", height=380, elem_id="chatbox", show_copy_button=True,
     )
 
