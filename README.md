@@ -30,9 +30,9 @@ short_description: Offline AI health companion for elderly, Gemma 4 2B
 
 ## 🎬 Demo Video
 
-[![Demo Video](https://img.youtube.com/vi/yzgazf0X-pI/0.jpg)](https://youtu.be/yzgazf0X-pI)
+[![Demo Video](https://img.youtube.com/vi/m4DD0gsQ_FU/0.jpg)](https://youtu.be/m4DD0gsQ_FU)
 
-**Watch:** https://youtu.be/yzgazf0X-pI
+**Watch:** https://youtu.be/m4DD0gsQ_FU
 
 ## 🗣️ Social Post
 
