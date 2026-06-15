@@ -381,6 +381,62 @@ with gr.Blocks(css=CSS, title="Thuna — AI Health Companion", theme=gr.themes.S
     audio_in.stop_recording(on_voice, [audio_in, chatbot], [chatbot, status_box])
     img_in.change(on_image, [img_in, chatbot], [chatbot, status_box])
 
+    # ─── TTS: Browser-based text-to-speech for responses ───
+    # Uses Web Speech API — speaks Malayalam if voice available, else English
+    tts_js = """
+    () => {
+        // Observe new bot messages and speak them
+        const chatEl = document.querySelector('#chatbox');
+        if (!chatEl) return;
+        
+        const observer = new MutationObserver(() => {
+            const messages = chatEl.querySelectorAll('.bot .message-bubble');
+            if (messages.length === 0) return;
+            const lastMsg = messages[messages.length - 1];
+            const text = lastMsg.innerText || '';
+            if (!text || text.length < 3) return;
+            
+            // Don't re-speak the same message
+            if (lastMsg.dataset.spoken === 'true') return;
+            lastMsg.dataset.spoken = 'true';
+            
+            // Clean text for speech
+            let speakText = text
+                .replace(/[✓╌·🩺🩸💊⏰🏥🤒✅❤️📊📈🚨⚠️📷🎉]/g, '')
+                .replace(/```[\\s\\S]*?```/g, '')
+                .replace(/`[^`]*`/g, '')
+                .replace(/\\n+/g, '. ')
+                .trim();
+            if (speakText.length < 3) return;
+            if (speakText.length > 300) speakText = speakText.substring(0, 300);
+            
+            // Speak it
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(speakText);
+            utterance.rate = 0.85;
+            utterance.pitch = 1.0;
+            
+            // Try Malayalam voice first
+            const voices = window.speechSynthesis.getVoices();
+            const mlVoice = voices.find(v => v.lang.startsWith('ml'));
+            if (mlVoice) {
+                utterance.voice = mlVoice;
+                utterance.lang = 'ml-IN';
+            } else {
+                utterance.lang = 'ml-IN'; // Request Malayalam even without explicit voice
+            }
+            
+            window.speechSynthesis.speak(utterance);
+        });
+        
+        observer.observe(chatEl, { childList: true, subtree: true });
+        
+        // Load voices (some browsers need this)
+        window.speechSynthesis.getVoices();
+    }
+    """
+    demo.load(fn=None, js=tts_js)
+
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860)
